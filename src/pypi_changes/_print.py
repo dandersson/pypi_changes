@@ -3,11 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Iterable
 
-from humanize import naturaltime
-from rich import print as rich_print
-from rich.markup import escape
-from rich.text import Text
-from rich.tree import Tree
+from rich.console import Console
+from rich.table import Table
 
 from ._cli import Options
 from ._pkg import Package
@@ -32,27 +29,28 @@ def get_sorted_pkg_list(distributions: Iterable[Package], options: Options, now:
 
 def print_tree(distributions: Iterable[Package], options: Options) -> None:
     now = datetime.now(timezone.utc)
-    tree = Tree(f"🐍 Distributions within {escape(str(options.python))}", guide_style="cyan")
+    table = Table()
+    table.add_column("Package")
+    table.add_column("Version", justify="right")
+    table.add_column("Released", justify="center")
+    table.add_column("Newest", justify="right")
+    table.add_column("Released", justify="center")
     for pkg in get_sorted_pkg_list(distributions, options, now):
-        text = Text(pkg.name, "yellow")
-        text.stylize(f"link https://pypi.org/project/{pkg.name}/#history")
-        text.append(" ", "white")
-        text.append(pkg.version, "blue")
+        row = [pkg.name, pkg.version]
         last_release = pkg.last_release
         if last_release is not None:  # pragma: no branch
             if last_release["version"] != pkg.version and pkg.info is not None:
                 for a_version, releases in pkg.info["releases"].items():  # pragma: no branch
                     first_release_at = releases[0]["upload_time_iso_8601"]
                     if a_version == pkg.dist.version and first_release_at is not None:
-                        text.append(" ")  # pragma: no cover
-                        text.append(naturaltime(now - first_release_at), "green")  # pragma: no cover
-                        break  # pragma: no cover
-                text.append(f" remote {last_release['version']}", "red")
+                        row += [f"{first_release_at:%Y-%m-%d}"]
+                        break
+                row += [last_release['version']]
             if last_release["upload_time_iso_8601"] is not None:  # pragma: no branch
-                text.append(" ", "white")
-                text.append(naturaltime(now - last_release["upload_time_iso_8601"]), "green")
-        tree.add(text)
-    rich_print(tree)
+                row += [f"{last_release['upload_time_iso_8601']:%Y-%m-%d}"]
+        table.add_row(*row)
+    console = Console()
+    console.print(table)
 
 
 __all__ = [
